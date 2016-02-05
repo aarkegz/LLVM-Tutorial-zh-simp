@@ -46,8 +46,46 @@
     
     既然已经完成了一个支持控制流，函数和可变变量的五脏俱全的小型编译器，我们应该考虑一下怎么在独立的可执行文件中加入调试信息。调试信息能够让调试器在Kaleidoscope函数中设置断点，打印参数变量，甚至直接调用函数！
     
-Chapter #9: Conclusion and other useful LLVM tidbits - This chapter wraps up the series by talking about potential ways to extend the language, but also includes a bunch of pointers to info about “special topics” like adding garbage collection support, exceptions, debugging, support for “spaghetti stacks”, and a bunch of other tips and tricks.
+- 第九章： **总结、其他实用的LLVM小技巧**
+    
+    这一章讨论了几种可能的拓展这种语言的方式，也包含了一些对有关专题的建议，例如：加入垃圾回收、异常处理、调试、以及对“spaghetti stacks”的支持，以及其他一些技巧与提示。
+    
+在教程结束时，我们总共写了不到一千行代码（除去注释与空行），就完成了为一门真正的语言设计的一个真正的编译器。它的词法分析器、语法分析器和AST是完全手写的，并且通过JIT编译器实现了代码生成。也许其他的系统会有有趣的“Hello world”一类的教程，但是我觉得本教程的宽度确确实实展示了LLVM的威力——以及如果你对程序设计语言和编译器的设计有兴趣的话，为什么LLVM是不可少的一课。
 
-By the end of the tutorial, we’ll have written a bit less than 1000 lines of non-comment, non-blank, lines of code. With this small amount of code, we’ll have built up a very reasonable compiler for a non-trivial language including a hand-written lexer, parser, AST, as well as code generation support with a JIT compiler. While other systems may have interesting “hello world” tutorials, I think the breadth of this tutorial is a great testament to the strengths of LLVM and why you should consider it if you’re interested in language or compiler design.
+一条关于本教程的注意事项：
 
-A note about this tutorial: we expect you to extend the language and play with it on your own. Take the code and go crazy hacking away at it, compilers don’t need to be scary creatures - it can be a lot of fun to play with languages!
+我们希望你自己拓展这门语言。尽情地使用这份代码，加入你自己的功能。编译器不一定是令人望而生畏的东西，你大可享受和语言一起玩耍的乐趣。
+
+##2. Kaleidoscope语言概述
+
+本教程基于一种名为Kaleidoscope（意为“美轮美奂的”）语言的玩具级语言。Kaleidoscope是一种基于过程的语言，允许你定义函数，使用条件判断、数学运算等等。在教程中，我们还会拓展Kaleidoscope，添加对“`if/then/else`”结构、for循环、自定义运算符，JIT编译的支持。
+
+This tutorial will be illustrated with a toy language that we’ll call “Kaleidoscope” (derived from “meaning beautiful, form, and view”). Kaleidoscope is a procedural language that allows you to define functions, use conditionals, math, etc. Over the course of the tutorial, we’ll extend Kaleidoscope to support the if/then/else construct, a for loop, user defined operators, JIT compilation with a simple command line interface, etc.
+
+Because we want to keep things simple, the only datatype in Kaleidoscope is a 64-bit floating point type (aka ‘double’ in C parlance). As such, all values are implicitly double precision and the language doesn’t require type declarations. This gives the language a very nice and simple syntax. For example, the following simple example computes Fibonacci numbers:
+
+```
+# Compute the x'th fibonacci number.
+def fib(x)
+  if x < 3 then
+    1
+  else
+    fib(x-1)+fib(x-2)
+
+# This expression will compute the 40th number.
+fib(40)
+```
+
+我们也允许Kaleidoscope语言调用标准库函数（LLVM JIT让这个功能变得十分易于实现）。这意味着你可以使用“`extern`”关键字来在函数被使用之前声明它（这在处理函数相互调用时也是实用的）。例如：
+
+```
+extern sin(arg);
+extern cos(arg);
+extern atan2(arg1 arg2);
+
+atan2(sin(.4), cos(42))
+```
+
+A more interesting example is included in Chapter 6 where we write a little Kaleidoscope application that displays a Mandelbrot Set at various levels of magnification.
+
+Lets dive into the implementation of this language!
