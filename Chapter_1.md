@@ -58,21 +58,20 @@
 
 ##2. Kaleidoscope语言概述
 
-本教程基于一种名为Kaleidoscope（意为“美轮美奂的”）语言的玩具级语言。Kaleidoscope是一种基于过程的语言，允许你定义函数，使用条件判断、数学运算等等。在教程中，我们还会拓展Kaleidoscope，添加对“`if/then/else`”结构、for循环、自定义运算符，JIT编译的支持。
+本教程基于一种名为Kaleidoscope（意为“美轮美奂的”）语言的玩具级语言。Kaleidoscope是一种基于过程的语言，允许你定义函数，使用条件判断、数学运算等等。在教程中，我们还会拓展Kaleidoscope，添加对“`if/then/else`”结构、for循环、自定义运算符，JIT编译的支持。（译者注：此段末句存疑，需要翻译到相关章节后结合上下文本分析。暂作如此处理。）
 
-This tutorial will be illustrated with a toy language that we’ll call “Kaleidoscope” (derived from “meaning beautiful, form, and view”). Kaleidoscope is a procedural language that allows you to define functions, use conditionals, math, etc. Over the course of the tutorial, we’ll extend Kaleidoscope to support the if/then/else construct, a for loop, user defined operators, JIT compilation with a simple command line interface, etc.
+简便起见，Kaleidoscope只有一种数据类型：64位浮点数（亦即C风格语言中的“`double`”类型）。这样，所有值都毫无疑问是双精度浮点数值，语言中也不需要任何类型声明了。这能让语法简化。例如，下面是一个简单的计算斐波那契数的例子：
 
-Because we want to keep things simple, the only datatype in Kaleidoscope is a 64-bit floating point type (aka ‘double’ in C parlance). As such, all values are implicitly double precision and the language doesn’t require type declarations. This gives the language a very nice and simple syntax. For example, the following simple example computes Fibonacci numbers:
 
 ```
-# Compute the x'th fibonacci number.
+# 计算第x个斐波那契数
 def fib(x)
   if x < 3 then
     1
   else
     fib(x-1)+fib(x-2)
 
-# This expression will compute the 40th number.
+# 这个表达式计算第四十个斐波那契数
 fib(40)
 ```
 
@@ -86,6 +85,107 @@ extern atan2(arg1 arg2);
 atan2(sin(.4), cos(42))
 ```
 
-A more interesting example is included in Chapter 6 where we write a little Kaleidoscope application that displays a Mandelbrot Set at various levels of magnification.
+第六章包含另一个更有趣的例子：通过一个简单的Kaleidoscope程序来显示不同的放大倍数下的Mandelbrot集合。
 
-Lets dive into the implementation of this language!
+现在开始实现这一门语言吧！
+
+##3. 词法分析器
+
+实现一门语言的需要做的第一件事就是处理程序文本，明白它在说什么。传统的方式是使用词法分析器（也叫“扫描器”）把输入文本分成一个个“词法单元”。词法分析器返回的每一个词法单元都包含词法单元类型代码，也可能包含一些元数据（例如，一个数字单元的值）。首先，我们定义以下可能的词法单元类型：
+
+```cpp
+// 当遇到未知字符时，词法分析器返回0-255
+// 否则返回下列值中的一种
+enum Token {
+  tok_eof = -1,
+
+  // commands
+  tok_def = -2,
+  tok_extern = -3,
+
+  // primary
+  tok_identifier = -4,
+  tok_number = -5,
+};
+
+static std::string IdentifierStr; // 如果是tok_identifier，则包含标识符的的名称
+static double NumVal;             // 如果是tok_number，则包含数字的值
+```
+
+我们的词法分析器返回的词法单元要么是上述“`Token`”枚举类型中一种，要么是未知字符（如“`+`”）的ASCII码值。如果返回的词法单元是一个标识符，全局变量“`IdentifierStr`”保存了标识符的名称。如果返回的词法单元是数字，全局变量“`NumVal`”保存了数字的值。注意这里使用了全局变量，如果真正实现一个编译器，最好不要这么做：）。
+
+真正实现的词法分析器只是一个名为“`gettok`”的函数。`gettok`函数返回从标准输入得到的下一个词法单元。这个函数的开头是这样的：
+
+```cpp
+/// gettok - 返回从标准输入得到的下一个词法单元。
+static int gettok() {
+  static int LastChar = ' ';
+
+  // 跳过所有空白字符
+  while (isspace(LastChar))
+    LastChar = getchar();
+```
+`gettok`函数调用C语言的`getchar()`函数，每次从标准输入读取一个字符，接着识别，同时
+
+gettok works by calling the C getchar() function to read characters one at a time from standard input. It eats them as it recognizes them and stores the last character read, but not processed, in LastChar. The first thing that it has to do is ignore whitespace between tokens. This is accomplished with the loop above.
+
+The next thing gettok needs to do is recognize identifiers and specific keywords like “def”. Kaleidoscope does this with this simple loop:
+
+```cpp
+if (isalpha(LastChar)) { // identifier: [a-zA-Z][a-zA-Z0-9]*
+  IdentifierStr = LastChar;
+  while (isalnum((LastChar = getchar())))
+    IdentifierStr += LastChar;
+
+  if (IdentifierStr == "def")
+    return tok_def;
+  if (IdentifierStr == "extern")
+    return tok_extern;
+  return tok_identifier;
+}
+```
+
+Note that this code sets the ‘IdentifierStr‘ global whenever it lexes an identifier. Also, since language keywords are matched by the same loop, we handle them here inline. Numeric values are similar:
+
+```cpp
+if (isdigit(LastChar) || LastChar == '.') {   // Number: [0-9.]+
+  std::string NumStr;
+  do {
+    NumStr += LastChar;
+    LastChar = getchar();
+  } while (isdigit(LastChar) || LastChar == '.');
+
+  NumVal = strtod(NumStr.c_str(), 0);
+  return tok_number;
+}
+```
+
+This is all pretty straight-forward code for processing input. When reading a numeric value from input, we use the C strtod function to convert it to a numeric value that we store in NumVal. Note that this isn’t doing sufficient error checking: it will incorrectly read “1.23.45.67” and handle it as if you typed in “1.23”. Feel free to extend it :). Next we handle comments:
+
+```cpp
+if (LastChar == '#') {
+  // Comment until end of line.
+  do
+    LastChar = getchar();
+  while (LastChar != EOF && LastChar != '\n' && LastChar != '\r');
+
+  if (LastChar != EOF)
+    return gettok();
+}
+```
+
+We handle comments by skipping to the end of the line and then return the next token. Finally, if the input doesn’t match one of the above cases, it is either an operator character like ‘+’ or the end of the file. These are handled with this code:
+
+```cpp
+  // Check for end of file.  Don't eat the EOF.
+  if (LastChar == EOF)
+    return tok_eof;
+
+  // Otherwise, just return the character as its ascii value.
+  int ThisChar = LastChar;
+  LastChar = getchar();
+  return ThisChar;
+}
+```
+
+With this, we have the complete lexer for the basic Kaleidoscope language (the full code listing for the Lexer is available in the next chapter of the tutorial). Next we’ll build a simple parser that uses this to build an Abstract Syntax Tree. When we have that, we’ll include a driver so that you can use the lexer and parser together.
