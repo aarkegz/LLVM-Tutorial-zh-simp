@@ -125,14 +125,13 @@ static int gettok() {
   while (isspace(LastChar))
     LastChar = getchar();
 ```
-`gettok`函数调用C语言的`getchar()`函数，每次从标准输入读取一个字符，接着识别，同时
 
-gettok works by calling the C getchar() function to read characters one at a time from standard input. It eats them as it recognizes them and stores the last character read, but not processed, in LastChar. The first thing that it has to do is ignore whitespace between tokens. This is accomplished with the loop above.
+`gettok`函数调用C语言的`getchar()`函数，每次从标准输入读取一个字符到`LastChar`中，但是先不做处理。这个函数做的第一件事情就是跳过词法单元间的空白字符，上面的循环实现了这一功能。
 
-The next thing gettok needs to do is recognize identifiers and specific keywords like “def”. Kaleidoscope does this with this simple loop:
+下面的工作是识别标识符和`def`等关键字。Kaleidoscope在下面这个简单的循环中完成这项工作：
 
 ```cpp
-if (isalpha(LastChar)) { // identifier: [a-zA-Z][a-zA-Z0-9]*
+if (isalpha(LastChar)) { // 标识符： [a-zA-Z][a-zA-Z0-9]*
   IdentifierStr = LastChar;
   while (isalnum((LastChar = getchar())))
     IdentifierStr += LastChar;
@@ -145,7 +144,7 @@ if (isalpha(LastChar)) { // identifier: [a-zA-Z][a-zA-Z0-9]*
 }
 ```
 
-Note that this code sets the ‘IdentifierStr‘ global whenever it lexes an identifier. Also, since language keywords are matched by the same loop, we handle them here inline. Numeric values are similar:
+注意，这段代码直接把读入的内容存储在全局变量`IdentifierStr`中。关键字也在此一并被识别并处理。处理数字的方式类似：
 
 ```cpp
 if (isdigit(LastChar) || LastChar == '.') {   // Number: [0-9.]+
@@ -160,7 +159,7 @@ if (isdigit(LastChar) || LastChar == '.') {   // Number: [0-9.]+
 }
 ```
 
-This is all pretty straight-forward code for processing input. When reading a numeric value from input, we use the C strtod function to convert it to a numeric value that we store in NumVal. Note that this isn’t doing sufficient error checking: it will incorrectly read “1.23.45.67” and handle it as if you typed in “1.23”. Feel free to extend it :). Next we handle comments:
+处理输入的代码简单明了。当读入一个数字时，我们使用C语言中的`strtod`函数把它转换成数字并且储存在`NumVal`变量中。注意这段代码不能检查出所有的错误：当输入“1.23.45.67”时，它会按输入“1.23”来处理。你可以自己修复这个小小的不足。接下来我们要处理注释了：
 
 ```cpp
 if (LastChar == '#') {
@@ -174,7 +173,7 @@ if (LastChar == '#') {
 }
 ```
 
-We handle comments by skipping to the end of the line and then return the next token. Finally, if the input doesn’t match one of the above cases, it is either an operator character like ‘+’ or the end of the file. These are handled with this code:
+对于注释，我们直接跳过，直到行末，并且返回下一个词法单元。最终，如果输入的字符不符合上面任意一种，那它要么是一个运算符（例如“`+`”），要么是文件结束。下面的代码处理这两种情况：
 
 ```cpp
   // Check for end of file.  Don't eat the EOF.
@@ -188,4 +187,5 @@ We handle comments by skipping to the end of the line and then return the next t
 }
 ```
 
-With this, we have the complete lexer for the basic Kaleidoscope language (the full code listing for the Lexer is available in the next chapter of the tutorial). Next we’ll build a simple parser that uses this to build an Abstract Syntax Tree. When we have that, we’ll include a driver so that you can use the lexer and parser together.
+这样，我们完成了最基础的Kaleidoscope语言的词法分析器（词法分析器的详细代码可以在教程的下一章看到）。接下来我们要编写一个简单的语法分析器，使用这个词法分析器并且构建抽象语法树。然后我们会编写一段代码，来让词法分析器和语法分析器共同工作。
+
